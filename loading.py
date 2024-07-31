@@ -46,6 +46,7 @@ for doc_info in documents:
         
         if word_count > 10:
             doc.metadata["category"] = doc_info["category"]
+            doc.metadata["document_name"] = doc_info["document_name"]
             valid_docs.append(doc)
     
     processed_docs.extend(valid_docs)
