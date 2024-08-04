@@ -3,6 +3,15 @@ from langchain_community.document_loaders import PyPDFLoader
 import sys
 
 def correct_ger_umlauts(text):
+    """
+    Corrects incorrectly encoded German umlauts and the Eszett in a given text.
+
+    Args:
+        text (str): The input string that may contain incorrectly encoded umlauts and the Eszett.
+
+    Returns:
+        str: A string with the incorrect characters replaced by the correct German umlauts and Eszett.
+    """
     replacements = {
         'Ã¤': 'ä',
         'Ã¶': 'ö',
@@ -16,6 +25,50 @@ def correct_ger_umlauts(text):
         text = text.replace(wrong, right)
     return text
 
+
+def preprocess_docs(documents, root_dir):
+    """
+    Processes a list of PDF documents by:
+        - splitting into pages
+        - correcting text encoding errors
+        - adds metadata attributes (document_name, category)
+        - filters by documents with > 10 words
+
+    Args:
+        - documents (list of dict): A list of dictionaries where each dictionary contains information about a document, specifically:
+            - 'document_name': The name of the document file (str).
+            - 'category': The category to be assigned to each document (str).
+
+        - root_dir (str): The root directory where the PDF documents are stored.
+
+    Returns:
+        list: A list of processed documents with added metadata and corrected text.
+    """
+    
+    preprocessed_docs = []
+
+    for doc_info in documents:
+        pdf = os.path.join(root_dir, doc_info["document_name"])
+
+        # PyPDFLoader separates a document by page - access extracted text (page_content) or metadata (metadata)
+        loader = PyPDFLoader(pdf)
+        docs = loader.load()
+
+        valid_docs = []
+
+        for doc in docs:
+            clean_text = correct_ger_umlauts(doc.page_content)
+            word_count = len(clean_text.split())
+
+            if word_count > 10:
+                doc.metadata["category"] = doc_info["category"]
+                doc.metadata["document_name"] = doc_info["document_name"]
+                valid_docs.append(doc)
+
+        preprocessed_docs.extend(valid_docs)
+
+    return preprocessed_docs
+
 cur_dir = os.getcwd()
 root_dir = os.path.join(cur_dir, "Dokumente", "Mülltrennung")
 
@@ -26,35 +79,4 @@ documents = [
     {"document_name": "MW_wertstofftonne.pdf", "category": "mülltrennung_wertstoff"}
 ]
 
-#print(list(documents[0].items())[0][1]) # Access document name of first document
-
-processed_docs = []
-
-# Iterate over each document in list, read PDF and add category as new metadata attribute
-for doc_info in documents:
-    pdf = os.path.join(root_dir, doc_info["document_name"])
-    
-    # PyPDFLoader separates a document by page - access extracted text (page_content) or metadata (metadata)
-    loader = PyPDFLoader(pdf)
-    docs = loader.load()
-    
-    valid_docs = []
-    
-    for doc in docs:
-        clean_text = correct_ger_umlauts(doc.page_content)
-        word_count = len(clean_text.split())
-        
-        if word_count > 10:
-            doc.metadata["category"] = doc_info["category"]
-            doc.metadata["document_name"] = doc_info["document_name"]
-            valid_docs.append(doc)
-    
-    processed_docs.extend(valid_docs)
-        
-"""
-for doc in processed_docs:
-    print(doc.metadata)
-
-print(f"Total number of processed documents: {len(processed_docs)}")
-print(processed_docs[4])
-"""
+preprocessed_docs = preprocess_docs(documents=documents, root_dir=root_dir)
