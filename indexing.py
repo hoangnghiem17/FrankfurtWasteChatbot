@@ -1,4 +1,4 @@
-from loading import preprocessed_docs
+from loading import preprocess_docs
 from langchain_community.embeddings import SentenceTransformerEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
@@ -75,6 +75,23 @@ def embed_and_store_chunks(chunked_documents, collection_name):
 
     return chroma_store
 
+# Define documents
+cur_dir = os.getcwd()
+root_dir = os.path.join(cur_dir, "Dokumente", "Mülltrennung")
+
+# Store PDFs in a list of dictionaries containing attributes for metadata
+documents = [
+    {"document_name": "FES_waskommtwohinein.pdf", "category": "mülltrennung_allgemein"},
+    {"document_name": "FES_keinplastikindiebiotonne.pdf", "category": "mülltrennung_bio"},
+    {"document_name": "MW_wertstofftonne.pdf", "category": "mülltrennung_wertstoff"}
+]
+
+# Preprocess raw documents
+preprocessed_docs = preprocess_docs(documents=documents, root_dir=root_dir)
+
+# Split preprocessed documents into chunks
 chunked_documents = chunk_documents(preprocessed_docs=preprocessed_docs)
+
+# Embed chunks and save to Chroma vector store
 chroma_store = embed_and_store_chunks(chunked_documents, collection_name="frankfurt_waste_chatbot_v1")
 

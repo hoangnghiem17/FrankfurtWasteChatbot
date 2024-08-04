@@ -69,6 +69,7 @@ def preprocess_docs(documents, root_dir):
 
     return preprocessed_docs
 
+"""
 cur_dir = os.getcwd()
 root_dir = os.path.join(cur_dir, "Dokumente", "Mülltrennung")
 
@@ -80,3 +81,4 @@ documents = [
 ]
 
 preprocessed_docs = preprocess_docs(documents=documents, root_dir=root_dir)
+"""
