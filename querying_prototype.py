@@ -54,7 +54,11 @@ chroma_client = chromadb.PersistentClient(
 # Step 2: Create a collection
 chroma_client.reset()
 collection_name = "test_db"
-collection = chroma_client.create_collection(collection_name)
+collection = chroma_client.create_collection(
+    name=collection_name
+    #metadata={"hnsw:space": "cosine"} # change distance function - l2 is the default
+
+)
 
 # Insert documents and embeddings into collection
 for idx, (doc, embed) in enumerate(zip(chunked_documents, embeddings)):
@@ -76,4 +80,12 @@ for idx, (document, metadata) in enumerate(zip(all_documents["documents"], all_d
     print(f"Document {idx} Metadata: {metadata}")
     print(f"Document {idx} Content: {document}\n")
 
-
+# Query the collection to return n most similar results
+results = collection.query(
+    query_texts=["Das ist eine Query über Biomüll."], # Chroma embeds this 
+    n_results=3,
+    include=['documents', 'metadatas', 'distances'] #, 'embeddings']
+    #where={"metadata_field": "is_equal_to_this"}, # Filter by metadata 
+    #where_document={"$contains":"search_string"} # Filter by document
+)
+print(results)

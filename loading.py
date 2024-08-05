@@ -1,8 +1,18 @@
 import os
-from langchain_community.document_loaders import PyPDFLoader
-import sys
+import logging
+from typing import List, Dict
 
-def correct_ger_umlauts(text):
+from langchain_community.document_loaders import PyPDFLoader
+
+from config import document_directory
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
+)
+
+def correct_ger_umlauts(text: str) -> str:
     """
     Corrects incorrectly encoded German umlauts and the Eszett in a given text.
 
@@ -23,10 +33,11 @@ def correct_ger_umlauts(text):
     }
     for wrong, right in replacements.items():
         text = text.replace(wrong, right)
+        
     return text
 
 
-def preprocess_docs(documents, root_dir):
+def preprocess_docs(documents: List[Dict[str,str]], root_dir: str) -> List:
     """
     Processes a list of PDF documents by:
         - splitting into pages
@@ -44,41 +55,41 @@ def preprocess_docs(documents, root_dir):
     Returns:
         list: A list of processed documents with added metadata and corrected text.
     """
+
+    # Validate input
+    if not isinstance(documents, list) or not all(isinstance(doc, dict) for doc in documents):
+        logging.error("Invalid input: 'documents' should be a list of dictionaries.")
+        raise ValueError("Invalid input: 'documents' should be a list of dictionaries.")
     
     preprocessed_docs = []
 
     for doc_info in documents:
-        pdf = os.path.join(root_dir, doc_info["document_name"])
+        pdf_path = os.path.join(document_directory, doc_info["document_name"])
+        
+        if not os.path.isfile(pdf_path):
+            logging.warning(f"File not found: {pdf_path}. Skipping document.")
+            continue
 
-        # PyPDFLoader separates a document by page - access extracted text (page_content) or metadata (metadata)
-        loader = PyPDFLoader(pdf)
-        docs = loader.load()
+        try:
+            # PyPDFLoader separates a document by page - access extracted text (page_content) or metadata (metadata)
+            loader = PyPDFLoader(pdf_path)
+            docs = loader.load()
 
-        valid_docs = []
+            valid_docs = []
 
-        for doc in docs:
-            clean_text = correct_ger_umlauts(doc.page_content)
-            word_count = len(clean_text.split())
+            for doc in docs:
+                clean_text = correct_ger_umlauts(doc.page_content)
+                word_count = len(clean_text.split())
 
-            if word_count > 10:
-                doc.metadata["category"] = doc_info["category"]
-                doc.metadata["document_name"] = doc_info["document_name"]
-                valid_docs.append(doc)
+                if word_count > 10:
+                    doc.metadata["category"] = doc_info.get("category", "unknown")
+                    doc.metadata["document_name"] = doc_info.get("document_name", "unknown")
+                    valid_docs.append(doc)
 
-        preprocessed_docs.extend(valid_docs)
+            logging.info(f"Processed document: {doc_info['document_name']} with {len(valid_docs)} valid pages.")
+            preprocessed_docs.extend(valid_docs)
 
+        except Exception as e:
+            logging.error(f"Error processing document {doc_info.get('document_name', 'unknown')}: {e}")
+    
     return preprocessed_docs
-
-"""
-cur_dir = os.getcwd()
-root_dir = os.path.join(cur_dir, "Dokumente", "Mülltrennung")
-
-# Store PDFs in a list of dictionaries containing attributes for metadata
-documents = [
-    {"document_name": "FES_waskommtwohinein.pdf", "category": "mülltrennung_allgemein"},
-    {"document_name": "FES_keinplastikindiebiotonne.pdf", "category": "mülltrennung_bio"},
-    {"document_name": "MW_wertstofftonne.pdf", "category": "mülltrennung_wertstoff"}
-]
-
-preprocessed_docs = preprocess_docs(documents=documents, root_dir=root_dir)
-"""

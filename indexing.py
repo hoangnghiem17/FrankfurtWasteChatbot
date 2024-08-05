@@ -3,13 +3,16 @@ import sys
 import logging
 import shutil
 from typing import List
+
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
 import chromadb
 from chromadb import Client
 from chromadb.config import Settings, DEFAULT_DATABASE, DEFAULT_TENANT
+
 from loading import preprocess_docs
+from config import dev_directory, chroma_directory, document_directory, embedding_model
 
 # Configure logging
 logging.basicConfig(
@@ -18,15 +21,14 @@ logging.basicConfig(
 )
 
 # Configure SentenceTransformerModel
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer(embedding_model)
 
-# Chroma settings
-persist_directory = os.path.join(os.getcwd(), "chroma")
-os.makedirs(persist_directory, exist_ok=True)  # Ensure directory exists
+# Chroma settings - ensure directory exists
+os.makedirs(chroma_directory, exist_ok=True)
 
 # Initialize Chroma client
 chroma_client = chromadb.PersistentClient(
-    path=persist_directory,
+    path=chroma_directory,
     settings=Settings(allow_reset=True),
     tenant=DEFAULT_TENANT,
     database=DEFAULT_DATABASE
@@ -46,8 +48,9 @@ def chunk_documents(preprocessed_docs: List[Document], chunk_size: int = 500, ch
     """
     
     logging.info("Starting document chunking process.")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    
     documents = []
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
     for doc in preprocessed_docs:
         try:
@@ -73,9 +76,11 @@ def embed_documents(documents: List[Document]) -> List[List[float]]:
     """
     
     logging.info("Starting embedding process.")
+    
     texts = [doc.page_content for doc in documents]
     embeddings = model.encode(texts, convert_to_tensor=False)
-    embeddings = [embedding.tolist() for embedding in embeddings]  # Convert ndarray to list
+    embeddings = [embedding.tolist() for embedding in embeddings]  # Convert ndarray to list for easer adding to chroma vector store
+    
     logging.info("Embedding process completed.")
     logging.debug(f"Generated {len(embeddings)} embeddings.")
 
@@ -115,10 +120,7 @@ def store_embeddings_in_chroma(documents: List[Document], embeddings: List[List[
 
 if __name__ == "__main__":
     
-    # Define documents
-    cur_dir = os.getcwd()
-    root_dir = os.path.join(cur_dir, "Dokumente", "Mülltrennung")
-
+    # Define document paths
     documents = [
         {"document_name": "FES_waskommtwohinein.pdf", "category": "mülltrennung_allgemein"},
         {"document_name": "FES_keinplastikindiebiotonne.pdf", "category": "mülltrennung_bio"},
@@ -127,7 +129,7 @@ if __name__ == "__main__":
 
     try:
         # Preprocess raw documents
-        preprocessed_docs = preprocess_docs(documents=documents, root_dir=root_dir)
+        preprocessed_docs = preprocess_docs(documents=documents, root_dir=dev_directory)
         logging.info("Preprocessing completed.")
 
         # Split preprocessed documents into chunks
@@ -135,7 +137,6 @@ if __name__ == "__main__":
 
         # Embed chunks
         embeddings = embed_documents(chunked_documents)
-
         
         # Check if documents and embeddings match
         if len(chunked_documents) != len(embeddings):
@@ -145,19 +146,6 @@ if __name__ == "__main__":
         # Store embeddings in Chroma
         collection_name = "frankfurt_waste_chatbot_v1"
         collection = store_embeddings_in_chroma(chunked_documents, embeddings, collection_name)
-        
-        # Validation
-        print(f"Total chunks created: {len(chunked_documents)}")
-        print(f"Total embeddings generated: {len(embeddings)}")
-        
-        # Retrieve data from the collection for sanity checks
-        retrieved_data = collection.get()
-        retrieved_embeddings = retrieved_data['embeddings']
-        retrieved_documents = retrieved_data['documents']
-
-        # Check retrieved data lengths
-        print(f"Total documents in collection: {len(retrieved_documents)}")
-        #print(f"Total embeddings in collection: {len(retrieved_embeddings)}")
         
     except Exception as e:
         logging.error(f"Error in main execution: {e}")
