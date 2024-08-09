@@ -7,12 +7,10 @@ from typing import List
 from sentence_transformers import SentenceTransformer
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document
-import chromadb
 from chromadb import Client
-from chromadb.config import Settings, DEFAULT_DATABASE, DEFAULT_TENANT
 
 from loading import preprocess_docs
-from config import dev_directory, chroma_directory, document_directory, embedding_model
+from config import dev_directory, chroma_directory, embedding_model_name, chroma_client
 
 # Configure logging
 logging.basicConfig(
@@ -20,19 +18,10 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
 )
 
-# Configure SentenceTransformerModel
-model = SentenceTransformer(embedding_model)
+embedding_function = SentenceTransformer(embedding_model_name)
 
 # Chroma settings - ensure directory exists
 os.makedirs(chroma_directory, exist_ok=True)
-
-# Initialize Chroma client
-chroma_client = chromadb.PersistentClient(
-    path=chroma_directory,
-    settings=Settings(allow_reset=True),
-    tenant=DEFAULT_TENANT,
-    database=DEFAULT_DATABASE
-)
 
 def chunk_documents(preprocessed_docs: List[Document], chunk_size: int = 500, chunk_overlap: int = 100) -> List[Document]:
     """
@@ -78,7 +67,7 @@ def embed_documents(documents: List[Document]) -> List[List[float]]:
     logging.info("Starting embedding process.")
     
     texts = [doc.page_content for doc in documents]
-    embeddings = model.encode(texts, convert_to_tensor=False)
+    embeddings = embedding_function.encode(texts, convert_to_tensor=False)
     embeddings = [embedding.tolist() for embedding in embeddings]  # Convert ndarray to list for easer adding to chroma vector store
     
     logging.info("Embedding process completed.")
@@ -99,8 +88,8 @@ def store_embeddings_in_chroma(documents: List[Document], embeddings: List[List[
     try:
         chroma_client.reset()
         logging.debug(f"Chroma database resetted.")
-
-        collection = chroma_client.create_collection(name=collection_name)
+        
+        collection = chroma_client.create_collection(name=collection_name) #embedding_function
         logging.info("Collection created in Chroma.")
 
         for idx, doc in enumerate(documents):
@@ -113,6 +102,7 @@ def store_embeddings_in_chroma(documents: List[Document], embeddings: List[List[
             )
         logging.info("Embeddings stored in Chroma.")
 
+    
     except Exception as e:
         logging.error(f"Error storing embeddings in Chroma: {e}")
     

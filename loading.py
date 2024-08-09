@@ -22,6 +22,7 @@ def correct_ger_umlauts(text: str) -> str:
     Returns:
         str: A string with the incorrect characters replaced by the correct German umlauts and Eszett.
     """
+    
     replacements = {
         'Ã¤': 'ä',
         'Ã¶': 'ö',
