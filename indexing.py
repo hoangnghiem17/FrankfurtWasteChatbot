@@ -1,7 +1,6 @@
 import os
 import sys
 import logging
-import shutil
 from typing import List
 
 from sentence_transformers import SentenceTransformer
@@ -101,7 +100,6 @@ def store_embeddings_in_chroma(documents: List[Document], embeddings: List[List[
                 documents=[doc.page_content]
             )
         logging.info("Embeddings stored in Chroma.")
-
     
     except Exception as e:
         logging.error(f"Error storing embeddings in Chroma: {e}")

@@ -15,3 +15,4 @@ chroma_client = chromadb.PersistentClient(
     tenant=DEFAULT_TENANT,
     database=DEFAULT_DATABASE
 )
+groq_apikey = "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"
