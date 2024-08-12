@@ -1,4 +1,13 @@
+import os
+
+import streamlit as st
+from groq import Groq
+
 from config import chroma_client
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 #-----------STATE: Documents are preprocessed, chunked, embedded and stored in Chroma vector store.
 def load_chroma_collection(name):
@@ -33,42 +42,51 @@ def get_relevant_passages(query, db, n_results):
   return passages
 
 def define_prompt(query, relevant_passages):
+  """
+  Constructs a prompt for the chatbot by combining the user's query with relevant passages.
+
+  Parameters:
+  - query (str): The user's search query or question.
+  - relevant_passages (list): A list of relevant document passages retrieved from the Chroma collection.
+
+  Returns:
+  - str: A formatted prompt string that incorporates the user's query and the relevant passages, designed to guide the chatbot in generating a comprehensive and context-aware response.
+  """
   processed_passages = [
     passage.replace("'", "").replace('"', "").replace("\n", " ")
     for passage in relevant_passages
   ]
-  
-  prompt = ("""You are a helpful and informative chatbot about waste separation that answers questions using text from the reference passage included below. \
-  Be sure to respond in the language in which the question is asked in a complete sentence, being comprehensive, including all relevant background information. \
-  If the passage is irrelevant to the answer, you may ignore it.
+
+  prompt = ("""You are a knowledgeable and helpful chatbot specialized in waste management for residents of Frankfurt am Main. You will answer questions in the same language in which they are asked. \
+  Use the provided context to inform your answer, but do not rely on it verbatim—rephrase and integrate the information naturally into your response. \
+  If the context does not directly apply to the question, generate an answer based on your understanding and provide helpful, relevant information. \
+  Always aim to be comprehensive, clear, and accurate, reflecting local regulations and practices related to waste management in Frankfurt am Main.
   QUESTION: '{query}'
-  PASSAGE: '{relevant_passages}'
+  CONTEXT: '{relevant_passages}'
 
   ANSWER:
   """).format(query=query, relevant_passages=processed_passages)
   
   return prompt
  
-from groq import Groq
-
-from config import groq_apikey
-
 def query_groq_api(query):
+    """
+    Queries the GROQ API with the user's query and relevant document passages to generate a response.
+
+    Parameters:
+    - query (str): The user's search query or question.
+
+    Returns:
+    - tuple: A tuple containing the generated answer (str) and the list of relevant document passages (list) used to generate the answer.
+    """
     client = Groq(
-        api_key=groq_apikey
+        api_key=os.getenv("GROQ_API_KEY")
     )
 
     # Perform similarity search to construct query and context
     db = load_chroma_collection(name="frankfurt_waste_chatbot_v1")
     relevant_passages = get_relevant_passages(query=query,db=db,n_results=3)
-    
-    """
-    # Print each relevant text in a separate line with its index
-    print(type(relevant_text))
-    for index, text in enumerate(relevant_text):
-        print(f"{index + 1}\n {text}")
-    """
-
+      
     chat_completion = client.chat.completions.create(
         messages=[
             {
@@ -80,10 +98,26 @@ def query_groq_api(query):
     )
     answer = chat_completion.choices[0].message.content
     
-    return answer
+    return answer, relevant_passages
 
-query = "Was sind die verschiedenen Mülltonnenarten in Frankfurt am Main?"
-answer = query_groq_api(query=query)
-print(answer)
+
+# Create Streamlit app
+st.title("Frankfurt Waste Chatbot")
+st.write("Hello, I am a chatbot based on the LLM Gemma of Google. Ask me any questions about waste management in Frankfurt!")
+
+# User input for the query
+user_question = st.text_input("Ask a question:")
+
+if user_question:
+    # Query GROQ API with user question
+    with st.spinner("Generating answer..."):
+        answer, context = query_groq_api(query=user_question)
+        
+    # Display the answer
+    st.write("**Answer:**")
+    st.write(answer)
     
-
+    # Display relevant, concatenated document chunks used for answer generation
+    st.write("### References Used:")
+    for i, passage in enumerate(context, start=1):
+        st.write(f"**Reference {i}:** {context}")

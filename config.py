@@ -7,7 +7,6 @@ dev_directory = os.getcwd()
 chroma_directory = os.path.join(dev_directory, "chroma")
 document_directory = os.path.join(dev_directory, "Dokumente", "Mülltrennung")
 embedding_model_name = "all-MiniLM-L6-v2"
-gemma_token = "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"
 api_url = "https://api-inference.huggingface.co/models/google/gemma-2b-it"
 chroma_client = chromadb.PersistentClient(
     path=chroma_directory,
@@ -15,4 +14,3 @@ chroma_client = chromadb.PersistentClient(
     tenant=DEFAULT_TENANT,
     database=DEFAULT_DATABASE
 )
-groq_apikey = "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"
