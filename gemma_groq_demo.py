@@ -10,11 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 #-----------STATE: Documents are preprocessed, chunked, embedded and stored in Chroma vector store.
-
-# Initialize session state to store chat history
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-    
+  
 def load_chroma_collection(name):
     """
     Loads an existing Chroma collection from the specified path with the given name.
@@ -46,16 +42,17 @@ def get_relevant_passages(query, db, n_results):
   
   return passages
 
-def define_prompt(query, relevant_passages, chat_history):
+def define_prompt(query, chat_history, relevant_passages):
   """
-  Constructs a prompt for the chatbot by combining the user's query with relevant passages.
+  Constructs a prompt for the chatbot by combining the user's query with relevant passages and the conversation history.
 
   Parameters:
   - query (str): The user's search query or question.
+  - chat history (list of dict): A list of dictionaries representation conversation history, containing "user" and "chatbot".
   - relevant_passages (list): A list of relevant document passages retrieved from the Chroma collection.
 
   Returns:
-  - str: A formatted prompt string that incorporates the user's query and the relevant passages, designed to guide the chatbot in generating a comprehensive and context-aware response.
+  - str: A formatted prompt string that incorporates the user's query, relevant passages and conversation history.
   """
   processed_passages = [
     passage.replace("'", "").replace('"', "").replace("\n", " ")
@@ -86,26 +83,29 @@ def define_prompt(query, relevant_passages, chat_history):
     )
   
   return prompt
- 
+
 def query_groq_api(query, chat_history):
     """
-    Queries the GROQ API with the user's query and relevant document passages to generate a response.
+    Queries the GROQ API with the constructed prompt to generate a response.
 
     Parameters:
     - query (str): The user's search query or question.
+    - chat history (list of dict): A list of dictionaries representation conversation history, containing "user" and "chatbot".
 
     Returns:
-    - tuple: A tuple containing the generated answer (str) and the list of relevant document passages (list) used to generate the answer.
+    - tuple: A tuple containing:
+        - str: The generated answer from the chatbot.
+        - list: The list of relevant document passages used to generate the answer.
     """
     client = Groq(
         api_key=os.getenv("GROQ_API_KEY")
     )
-
-    # Perform similarity search to construct query and context
+    
+    # Perform similarity search to construct query and context 
     db = load_chroma_collection(name="frankfurt_waste_chatbot_v1")
     relevant_passages = get_relevant_passages(query=query,db=db,n_results=3)
-      
-    prompt = define_prompt(query=query, relevant_passages=relevant_passages, chat_history=chat_history)
+    
+    prompt = define_prompt(query=query, chat_history=chat_history, relevant_passages=relevant_passages)
     chat_completion = client.chat.completions.create(
         messages=[
             {
@@ -116,35 +116,60 @@ def query_groq_api(query, chat_history):
         model="gemma-7b-it"
     )
     answer = chat_completion.choices[0].message.content
-    
+
     return answer, relevant_passages
 
-# Create Streamlit app
-st.title("Frankfurt Waste Chatbot")
-st.write("Hello, I am a chatbot based on the LLM Gemma of Google. Ask me any questions about waste management in Frankfurt!")
+def get_user_input():
+    """
+    Prompts the user to input a query via a text input field in a Streamlit application.
 
-# User input for the query
-user_question = st.text_input("Ask a question:")
+    Returns:
+    - str: The user's inputted query or question as a string.
+    """
+    return st.text_input("Ask a question:")
 
-if user_question:
-    # Query GROQ API with user question
+def generate_answer(user_question):
+    """
+    Generates answers by calling the GROQ API and updates the chat history and relevant references in a Streamlit application.
+
+    Parameters:
+    - user_question (str): The user's inputted query or question.
+
+    Returns:
+    - None
+    """
     with st.spinner("Generating answer..."):
-        answer, context = query_groq_api(query=user_question, chat_history=st.session_state.chat_history)
+        answer, relevant_passages = query_groq_api(query=user_question, chat_history=st.session_state.chat_history)
         
-    # Update chat history
     st.session_state.chat_history.append({"user": user_question, "chatbot": answer})
-        
-    # Display ongoing chat history
-    st.write("### Chat History")
-    for entry in st.session_state.chat_history:
-        st.write(f"**User:** {entry['user']}")
-        st.write(f"**Chatbot:** {entry['chatbot']}")
-        
-    # Display the answer
-    #st.write("### Latest Answer:")
-    #st.write(answer)
     
-    # Display relevant, concatenated document chunks used for answer generation
-    st.write("### References Used:")
-    for i, passage in enumerate(context, start=1):
-        st.write(f"**Reference {i}:** {passage}")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        st.write("### Chat History")
+        for entry in st.session_state.chat_history:
+            st.write(f"**User:** {entry['user']}")
+            st.write(f"**Chatbot:** {entry['chatbot']}")
+        
+    with col2:      
+        st.write("### References Provided:")
+        for i, passage in enumerate(relevant_passages, start=1):
+            st.write(f"**Reference {i}:** {passage}")
+            
+# Main function to run the Streamlit app
+if __name__ == "__main__":
+    st.set_page_config(layout="wide")
+    st.title("Frankfurt Waste Chatbot")
+    st.write("Hello, I am a chatbot based on the LLM Gemma of Google. Ask me any questions about waste management in Frankfurt!")
+  
+    # Initialize session state for chat history if not already done
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    # User input for the query
+    user_question = get_user_input()
+    
+    if user_question:
+        # Process the query and update the chat history
+       generate_answer(user_question=user_question)
+
