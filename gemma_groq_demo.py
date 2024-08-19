@@ -2,6 +2,9 @@ import os
 
 import streamlit as st
 from groq import Groq
+from langsmith import traceable
+from langsmith import Client
+
 
 from config import chroma_client
 
@@ -10,7 +13,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 #-----------STATE: Documents are preprocessed, chunked, embedded and stored in Chroma vector store.
-  
+
+client = Client()
+url = next(client.list_runs(project_name="default")).url
+print(url)
+
+@traceable
 def load_chroma_collection(name):
     """
     Loads an existing Chroma collection from the specified path with the given name.
@@ -26,6 +34,7 @@ def load_chroma_collection(name):
 
     return db
 
+@traceable
 def get_relevant_passages(query, db, n_results):
   """
   Retrieves the most relevant documents from the Chroma collection based on the given query.
@@ -42,6 +51,7 @@ def get_relevant_passages(query, db, n_results):
   
   return passages
 
+@traceable
 def define_prompt(query, chat_history, relevant_passages):
   """
   Constructs a prompt for the chatbot by combining the user's query with relevant passages and the conversation history.
@@ -84,6 +94,7 @@ def define_prompt(query, chat_history, relevant_passages):
   
   return prompt
 
+@traceable
 def query_groq_api(query, chat_history):
     """
     Queries the GROQ API with the constructed prompt to generate a response.
@@ -119,6 +130,7 @@ def query_groq_api(query, chat_history):
 
     return answer, relevant_passages
 
+@traceable
 def get_user_input():
     """
     Prompts the user to input a query via a text input field in a Streamlit application.
@@ -128,6 +140,7 @@ def get_user_input():
     """
     return st.text_input("Ask a question:")
 
+@traceable
 def generate_answer(user_question):
     """
     Generates answers by calling the GROQ API and updates the chat history and relevant references in a Streamlit application.
@@ -140,7 +153,7 @@ def generate_answer(user_question):
     """
     with st.spinner("Generating answer..."):
         answer, relevant_passages = query_groq_api(query=user_question, chat_history=st.session_state.chat_history)
-        
+               
     st.session_state.chat_history.append({"user": user_question, "chatbot": answer})
     
     col1, col2 = st.columns([2, 1])
